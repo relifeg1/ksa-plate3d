@@ -599,6 +599,14 @@
         em *= k;
       }
 
+      /* منفذُ قياسٍ لكلِّ رمز — به عُرف أنّ `textFill` لا أثرَ له:
+       * النطاقُ محكومٌ بـ asc = maxH / (صاعد + نازل)، والمجموعُ
+       * يبلغ ضعفَ الصاعد، فيبقى الصاعدُ نصفَ الخانة ولا يبلغه
+       * `textFill` أصلاً. */
+      if (global.__SLOT_DEBUG && isD) {
+        global.__SLOT_DEBUG.push({ ch: str[i], targetH: targetH, cellH: cellH,
+          maxH: maxH, asc: asc, slot: slot, em: em, inkH: (b.y1 - b.y0) * em });
+      }
       var gw = (b.x1 - b.x0) * em;
       var xs = (gw > slot * fill && gw > 0) ? (slot * fill) / gw : 1;
 
@@ -710,6 +718,7 @@
     // لونُ النقش يُختار مستقلّاً عن لون اللوحة إن شاء صاحبُها
     var inkColor = cfg.inkColor || col.ink;
     var warnings = [];
+    _crestNozzle = cfg.nozzle > 0 ? cfg.nozzle : 0.4;
     var S = cfg.targetWidth / spec.w;        // معامل التحجيم
     var W = spec.w * S, H = spec.h * S;
     /* — أيُّ الصفّين يُطبع —
@@ -1454,7 +1463,11 @@
     PLATE_LETTERS: PLATE_LETTERS, shapeArabic: shapeArabic,
     build: build, toLatin: toLatin, toArabicDigits: toArabicDigits,
     visualOrder: visualOrder, fitContours: fitContours,
-    textContours: textContours, wordContours: wordContours
+    textContours: textContours, wordContours: wordContours,
+    /* حارسُ التفاصيل يُصدَّر ليُقاس به كلُّ جزءٍ على حدة من خارج
+     * المحرّك: التحذيرُ يقول «الشعار» جملةً، والعلاجُ يحتاج الرقمَ
+     * للشعار وللكلمة ولخطوط الخانات كلٍّ على انفراد. */
+    minFeature: minFeature
   };
 
   // ————— محتوى الشريط —————
@@ -1471,7 +1484,11 @@
   function bandContent(cell, innerH, spec, col, cfg) {
     var ink = [], art = [], emblem = [];
     var w = cell.w, cx = cell.cx;
-    var usableW = w * 0.82;
+    /* عرضُ ما يُكتب في الشريط. كان ٠٫٨٢ فخرجت «السعودية» بخمسةٍ
+     * وثلاثين مليمتراً في شريطٍ عرضُه أربعةٌ وخمسون، وأنحفُ خطٍّ فيها
+     * ٠٫٥٧ مم — فوق الفوهة ودون ضِعفها، فتُطبع جداراً واحداً هشّاً.
+     * والخطُّ يغلُظ بمقدار ما تكبر الكلمة، فوُسّعت إلى ٠٫٩٤. */
+    var usableW = w * 0.94;
     var top = innerH / 2 - innerH * 0.06;
     var bot = -innerH / 2 + innerH * 0.06;
     var span = top - bot;
@@ -1497,7 +1514,12 @@
       yc -= hCrest + span * 0.035;
 
       if (words && bandAr) {
-        var hWord = span * 0.075;
+        /* قامةُ «السعودية» في الشريط. كانت ٠٫٠٧٥ من طول الشريط فخرج
+         * أنحفُ خطٍّ فيها ٠٫٥٧ مم: فوق الفوهة ودون ضِعفها، فتُطبع
+         * جداراً واحداً هشّاً يتقطّع — وهو ما رآه صاحبُ الأداة.
+         * والخطُّ يغلُظ بمقدار ما تكبر الكلمة، فرُفعت إلى ٠٫١٢٥
+         * فبلغ ٠٫٨ مم. والفرقُ يُؤخذ من K S A وفيها فضلٌ كثير. */
+        var hWord = span * 0.125;
         art = art.concat(bandWord(bandAr, cx, yc - hWord / 2, hWord, usableW));
         yc -= hWord + span * 0.05;
       }
@@ -1567,6 +1589,36 @@
   function crestFitted(cx, cy, maxW, maxH) {
     var raw = global.KSA_EMBLEM;
     if (!raw || !raw.length) return [];
-    return fitContours(raw, cx, cy, maxW, maxH).map(function (c) { return [c]; });
+    var out = fitContours(raw, cx, cy, maxW, maxH).map(function (c) { return [c]; });
+
+    /* ——— نسخةُ الطباعة ———
+     *
+     * كان يُقال: الشعارُ مرسومٌ لا مبنيّ فلا سبيل إلى تغليظ أطرافه،
+     * فيُقاس ويُبلَّغ به ويُترك. وقد طبع صاحبُ الأداة لوحةً فقال:
+     * «الشعار لم يكن واضحاً، وفي المناطق الصغيرة يفقد الشكل» —
+     * فالتبليغُ وحدَه لا يكفي.
+     *
+     * وله سبيل: يُرسَم في شبكةٍ عالية الدقّة، فيُغلق حتى تلتحم
+     * الفجواتُ التي أضيقُ من الفوهة، ثمّ يُمدَّد حتى يبلغ أنحفُه
+     * الفوهةَ، ثمّ يُعاد تتبّعُه. وذاك في وقت البناء لا في الحين —
+     * ونتيجتُه في emblem-print.js.
+     *
+     * فإن كان الأصلُ يفوت الفوهةَ عند هذا المقاس أُخذت نسخةُ الطباعة،
+     * وإلّا فالأصلُ أدقُّ ويبقى. */
+    if (!global.KSA_EMBLEM_PRINT) return out;
+    var nz = _crestNozzle || 0.4;
+    var flat = [];
+    out.forEach(function (g) { flat = flat.concat(g); });
+    var thin = minFeature(flat, Math.max(1.5, nz * 6), true);
+    if (isFinite(thin) && thin < nz) {
+      out = fitContours(global.KSA_EMBLEM_PRINT, cx, cy, maxW, maxH)
+              .map(function (c) { return [c]; });
+    }
+    return out;
   }
+
+  /* قطرُ الفوهة يبلغ رسّامَ الشعار من البناء: هو وحده ما يقرّر
+   * أيَّ النسختين تُؤخذ، ولا يمرُّ عبر توقيع الدالّة لأنّها تُنادى
+   * من مواضعَ شتّى. */
+  var _crestNozzle = 0.4;
 })(typeof window !== 'undefined' ? window : globalThis);
