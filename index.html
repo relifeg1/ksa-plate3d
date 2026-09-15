@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مولّد اللوحات السعودية ثلاثية الأبعاد</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f25;
+    --panel2: #23272f;
+    --line: #323841;
+    --txt: #e8eaed;
+    --dim: #9aa2ad;
+    --accent: #2e9e6b;
+    --accent2: #3aa9d6;
+    --warn: #e0a83a;
+    --danger: #d9534f;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font: 14px/1.6 "Segoe UI", Tahoma, system-ui, sans-serif;
+    display: flex; overflow: hidden;
+  }
+
+  /* ——— المعاينة ——— */
+  #stage { flex: 1; position: relative; min-width: 0; background:
+    radial-gradient(ellipse at 50% 35%, #232830 0%, #14161a 70%); }
+  #stage canvas { display: block; }
+  #hud {
+    position: absolute; top: 12px; inset-inline-start: 12px;
+    background: rgba(20,22,26,.82); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 13px; font-size: 12.5px; color: var(--dim);
+    backdrop-filter: blur(6px); pointer-events: none; line-height: 1.8;
+  }
+  #hud b { color: var(--txt); font-weight: 600; }
+  #viewbtns {
+    position: absolute; bottom: 12px; inset-inline-start: 12px; display: flex; gap: 6px;
+  }
+  #viewbtns button {
+    background: rgba(28,31,37,.9); border: 1px solid var(--line); color: var(--dim);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12.5px;
+    font-family: inherit;
+  }
+  #viewbtns button:hover { color: var(--txt); border-color: #4a525e; }
+
+  /* ——— لوحة التحكّم ——— */
+  #panel {
+    width: 370px; flex: none; background: var(--panel);
+    border-inline-start: 1px solid var(--line);
+    display: flex; flex-direction: column;
+  }
+  #panel header {
+    padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+  }
+  #panel header h1 { margin: 0; font-size: 15.5px; font-weight: 650; letter-spacing: .2px; }
+  #panel header p { margin: 3px 0 0; font-size: 12px; color: var(--dim); }
+  #scroll { overflow-y: auto; flex: 1; padding: 4px 16px 16px; }
+  #scroll::-webkit-scrollbar { width: 9px; }
+  #scroll::-webkit-scrollbar-thumb { background: #343a44; border-radius: 5px; }
+
+  details { border-bottom: 1px solid var(--line); }
+  details > summary {
+    list-style: none; cursor: pointer; padding: 12px 2px; font-size: 13px;
+    font-weight: 600; color: var(--txt); display: flex; align-items: center; gap: 8px;
+    user-select: none;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before {
+    content: '▾'; color: var(--dim); font-size: 11px; transition: transform .15s;
+    transform: rotate(-90deg);
+  }
+  details[open] > summary::before { transform: none; }
+  details > summary:hover { color: var(--accent); }
+  .grp { padding: 0 2px 14px; }
+  .sep { height: 1px; background: var(--line); margin: 13px 0 11px; opacity: .7; }
+  input[type=color] {
+    flex: 1; height: 30px; padding: 2px; background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 7px; cursor: pointer;
+  }
+
+  section { border-bottom: 1px solid var(--line); padding: 13px 0; }
+  section:last-of-type { border-bottom: 0; }
+  section > h2 {
+    margin: 0 0 10px; font-size: 12px; color: var(--dim);
+    font-weight: 600; letter-spacing: .4px; text-transform: none;
+  }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .row label { flex: none; width: 104px; font-size: 12.5px; color: var(--dim); }
+  .row .val { flex: none; width: 52px; text-align: end; font-size: 12px;
+    color: var(--txt); font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+  input[type=text], input[type=number], select {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 7px; padding: 6px 9px; font: inherit; font-size: 13px; min-width: 0;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus {
+    outline: none; border-color: var(--accent);
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--dim);
+    border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: 12.5px;
+    font-family: inherit; transition: .12s;
+  }
+  .chip:hover { border-color: #4a525e; color: var(--txt); }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.sw { display: flex; align-items: center; gap: 7px; }
+  .chip.sw i { width: 13px; height: 13px; border-radius: 3px; display: block;
+    border: 1px solid rgba(255,255,255,.25); }
+
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 10px; }
+  .chk { display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+    color: var(--dim); cursor: pointer; }
+  .chk input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .chk.on { color: var(--txt); }
+
+  /* لوحة الأرقام والحروف */
+  #plateInput {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px; display: flex; gap: 9px; align-items: center; direction: ltr;
+  }
+  #plateInput input[type=text] {
+    text-align: center; font-size: 20px; letter-spacing: 2px;
+    font-weight: 600; padding: 7px 6px; min-width: 0;
+  }
+  #digits { flex: 1.3; }
+  #letters { flex: 1; }
+  #laInput, #bandInput { display: flex; gap: 9px; margin-top: 8px; }
+  #bandInput input {
+    flex: 1; text-align: center; font-size: 15px; padding: 6px;
+    background: var(--panel2); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 7px; min-width: 0;
+  }
+  #laInput input {
+    flex: 1; text-align: center; font-size: 15px; padding: 6px;
+    background: var(--panel2); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 7px; min-width: 0;
+  }
+
+  #mirrorLine {
+    margin-top: 8px; text-align: center; font-size: 12px; color: var(--dim);
+    direction: ltr; font-variant-numeric: tabular-nums;
+  }
+  #mirrorLine b { color: var(--accent2); font-weight: 600; letter-spacing: 1.5px; }
+
+  .note { font-size: 11.5px; color: var(--dim); line-height: 1.7; margin: 7px 0 0; }
+  #warns { margin: 9px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .warn {
+    background: rgba(224,168,58,.10); border: 1px solid rgba(224,168,58,.35);
+    color: #f0c674; border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.6;
+  }
+
+  #exports { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--panel2); }
+  .btn {
+    width: 100%; border: 0; border-radius: 9px; padding: 10px; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 600; margin-bottom: 7px;
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #35b37b; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--dim); }
+  .btn.ghost:hover { color: var(--txt); border-color: #4a525e; }
+  #partList { font-size: 11.5px; color: var(--dim); margin-bottom: 9px; line-height: 1.8; }
+  #partList span { display: inline-flex; align-items: center; gap: 5px; margin-inline-end: 10px; }
+  #partList i { width: 9px; height: 9px; border-radius: 2px; display: inline-block;
+    border: 1px solid rgba(255,255,255,.2); }
+  #extruders { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  #extruders label { display: flex; align-items: center; gap: 5px; font-size: 11.5px;
+    color: var(--dim); }
+  #extruders select { padding: 3px 6px; font-size: 12px; border-radius: 6px; }
+  #tplDrop { border: 1px dashed var(--line); border-radius: 9px; padding: 9px;
+    text-align: center; color: var(--dim); font-size: 11.5px; cursor: pointer;
+    margin-bottom: 9px; transition: .12s; }
+  #tplDrop:hover { border-color: #4a525e; color: var(--txt); }
+  #extruders i { width: 9px; height: 9px; border-radius: 2px; display: inline-block;
+    border: 1px solid rgba(255,255,255,.2); }
+
+  .hidden { display: none !important; }
+  #drop.drag { border-color: var(--accent); color: var(--accent); }
+  #drop {
+    border: 1px dashed var(--line); border-radius: 9px; padding: 13px; text-align: center;
+    color: var(--dim); font-size: 12px; cursor: pointer; transition: .12s;
+  }
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    #panel { width: auto; height: 58%; border-inline-start: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="hud"></div>
+  <div id="viewbtns">
+    <button data-view="front">أمامي</button>
+    <button data-view="iso">مائل</button>
+    <button data-view="back">خلفي</button>
+  </div>
+</div>
+
+<aside id="panel">
+  <header>
+    <h1>مولّد اللوحات السعودية</h1>
+    <p>من النص إلى ملف طباعة — بلا إنترنت</p>
+  </header>
+
+  <div id="scroll">
+
+    <details open>
+      <summary>اللوحة</summary>
+      <div class="grp">
+        <div class="chips" id="typeChips"></div>
+        <p class="note" id="typeNote"></p>
+        <label class="chk" id="blankWrap">
+          <input type="checkbox" id="blank"> <span>لوحة فارغة بلا نص</span>
+        </label>
+
+        <div id="textSec">
+          <div id="plateInput">
+            <input type="text" id="digits" value="6251" inputmode="numeric" dir="ltr">
+            <input type="text" id="letters" value="احع" dir="rtl">
+          </div>
+          <div id="mirrorLine"></div>
+          <div id="laInput">
+            <input type="text" id="digitsAr" dir="rtl">
+            <input type="text" id="lettersLa" dir="ltr">
+          </div>
+          <p class="note">السطرُ الأوّل ما تكتبه، والثاني مقابلُه في الصفّ
+            الآخر — يُملأ تلقائياً وتستطيع تغييره. وما لا مقابلَ له من
+            الحروف («ش» مثلاً) يترك موضعَه فارغاً حتى تكتبه أنت.</p>
+
+          <label class="chk" style="margin-top:10px">
+            <input type="checkbox" id="joinText"> <span>نصّ عربي متّصل (كلمة لا حروف)</span>
+          </label>
+
+          <div class="sep"></div>
+          <div class="row">
+            <label>الصفّ الأعلى</label>
+            <div class="chips" style="flex:1" id="rowTopChips"></div>
+          </div>
+          <div class="row">
+            <label>الصفّ الأسفل</label>
+            <div class="chips" style="flex:1" id="rowBottomChips"></div>
+          </div>
+          <div class="row">
+            <label>أرقام الأعلى</label>
+            <div class="chips" style="flex:1" id="digitsTopChips"></div>
+          </div>
+          <div class="row" id="digitsBottomRow">
+            <label>أرقام الأسفل</label>
+            <div class="chips" style="flex:1" id="digitsBottomChips"></div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+        <div class="row">
+          <label>لون اللوحة</label>
+          <input type="color" id="baseColor" value="#F2F2EE">
+        </div>
+        <div class="row">
+          <label>لون النصّ</label>
+          <input type="color" id="inkColor" value="#111111">
+        </div>
+        <div class="row">
+          <label>رمز النوع</label>
+          <div class="chips" style="flex:1" id="symChips"></div>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>الشكل</summary>
+      <div class="grp">
+        <div class="row">
+          <label>الإطار</label>
+          <div class="chips" style="flex:1" id="cellStyleChips"></div>
+        </div>
+        <div class="row" id="strokeRow">
+          <label>سماكة الخطوط</label>
+          <input type="range" id="lineWeight" min="0.006" max="0.028" step="0.001" value="0.016">
+          <span class="val" id="lineWeightV"></span>
+        </div>
+        <div class="row" id="radiusRow">
+          <label>تدوير الزوايا</label>
+          <input type="range" id="cornerRadius" min="0.02" max="0.42" step="0.01" value="0.20">
+          <span class="val" id="cornerRadiusV"></span>
+        </div>
+        <label class="chk on"><input type="checkbox" id="innerLines" checked>
+          <span>الخطوط الداخلية بين الخانات</span></label>
+
+        <div class="row" id="colRatioRow">
+          <label>عرض خانة الأرقام</label>
+          <input type="range" id="colRatio" min="0.6" max="1.8" step="0.02" value="1">
+          <span class="val" id="colRatioV"></span>
+        </div>
+        <p class="note">خانةُ الأرقام وخانةُ الحروف متساويتان، والمنزلقُ
+          يوسّع الأولى على حساب الثانية.</p>
+
+        <div class="sep"></div>
+        <div class="row">
+          <label>حجم الخط</label>
+          <input type="range" id="textFill" min="0.4" max="0.95" step="0.01" value="0.58">
+          <span class="val" id="textFillV"></span>
+        </div>
+        <div class="row">
+          <label>توحيد الأحجام</label>
+          <input type="range" id="uniformGlyphs" min="0" max="1" step="0.05" value="1">
+          <span class="val" id="uniformGlyphsV"></span>
+        </div>
+        <p class="note">يخصُّ الحروفَ وحدَها: عند ١ يبلغ كلُّ حرفٍ ارتفاعَ
+          الصفّ بعينه فيتساوى «ر» و«ا» و R، وعند ٠ يعود لكلِّ حرفٍ حجمُه
+          في الخطّ. أمّا الأرقامُ فتُقاس مجموعةً واحدة كما صُمّمت — «٠»
+          نقطةٌ لا قرص.</p>
+
+        <div class="sep"></div>
+        <label class="chk on" id="glyphLinkWrap">
+          <input type="checkbox" id="glyphLink" checked>
+          <span>عرضٌ واحد للحروف والأرقام</span>
+        </label>
+        <div class="row" style="margin-top:9px">
+          <label>عرض الحروف</label>
+          <input type="range" id="glyphFillLetters" min="0.5" max="1" step="0.01" value="0.80">
+          <span class="val" id="glyphFillLettersV"></span>
+        </div>
+        <div class="row">
+          <label>عرض الأرقام</label>
+          <input type="range" id="glyphFillDigits" min="0.5" max="1" step="0.01" value="0.75">
+          <span class="val" id="glyphFillDigitsV"></span>
+        </div>
+        <div class="row">
+          <label>حدّ الضغط</label>
+          <input type="range" id="squeezeMin" min="0.3" max="1" step="0.05" value="0.45">
+          <span class="val" id="squeezeMinV"></span>
+        </div>
+        <p class="note">الضغطُ الأفقيّ يُنحّف العمودَ الرأسيَّ ويترك الأفقيَّ،
+          فدون هذا الحدّ يصغر الرمزُ بدل أن يُشوَّه. رفعُه يحفظ الشكل ويزيد
+          التفاوت، وخفضُه بالعكس.</p>
+
+        <p class="note">الرموز على شبكة متساوية — أربع خانات للأرقام وثلاث
+          للحروف. وخطوطُ اللوحات تجعل الحرف أعرضَ من الرقم بنحو ٧٪
+          على ارتفاعٍ واحد (FE-Schrift: ٤٧٫٥ و٤٤٫٥ مم بارتفاع ٧٥ مم)،
+          وهي النسبةُ الافتراضية هنا.</p>
+      </div>
+    </details>
+
+    <details id="logoSec">
+      <summary>الشعار والشريط</summary>
+      <div class="grp">
+        <div class="chips" id="logoChips"></div>
+        <label class="chk on" style="margin-top:10px">
+          <input type="checkbox" id="bandWords" checked>
+          <span>إظهار كلمتَي الشريط</span>
+        </label>
+        <div id="bandInput">
+          <input type="text" id="bandTextAr" dir="rtl" placeholder="السعودية">
+          <input type="text" id="bandTextLa" dir="ltr" placeholder="KSA">
+        </div>
+        <p class="note">كلمتا الشريط حرّتان — اكتب اسمك أو اسم متجرك.
+          والعربيةُ تُوصل وصلاً، واللاتينيةُ تُركَّب حرفاً فوق حرف في
+          اللوحة العادية.</p>
+
+        <div class="row" id="logoRow1" style="margin-top:10px">
+          <label>ارتفاع الشعار</label>
+          <input type="range" id="logoHeight" min="0.2" max="4" step="0.1" value="1">
+          <span class="val" id="logoHeightV"></span>
+        </div>
+        <label class="chk on" style="margin:-3px 0 9px 0">
+          <input type="checkbox" id="logoSync" checked>
+          <span>مزامنة مع ارتفاع النقش</span>
+        </label>
+        <div class="row" id="logoRow2">
+          <label>لون الشعار</label>
+          <input type="color" id="logoColor" value="#111111">
+        </div>
+
+        <div class="sep"></div>
+        <div id="drop">اسحب ملف SVG هنا أو اضغط للاختيار</div>
+        <input type="file" id="logoFile" accept=".svg,image/svg+xml" class="hidden">
+        <div class="row" style="margin-top:9px">
+          <label>دوران الشعار</label>
+          <input type="range" id="logoRotate" min="0" max="355" step="5" value="0">
+          <span class="val" id="logoRotateV"></span>
+        </div>
+        <div class="row">
+          <label>تدوير سريع</label>
+          <div class="chips" style="flex:1">
+            <button class="chip" data-rot="-90">↺ ٩٠</button>
+            <button class="chip" data-rot="90">↻ ٩٠</button>
+            <button class="chip" data-rot="180">١٨٠</button>
+          </div>
+        </div>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="logoFlipX"> <span>قلب أفقي</span></label>
+          <label class="chk"><input type="checkbox" id="logoFlipY"> <span>قلب رأسي</span></label>
+        </div>
+        <p class="note" id="logoNote"></p>
+      </div>
+    </details>
+
+    <details>
+      <summary>الطباعة</summary>
+      <div class="grp">
+        <div class="chips" id="sizeChips"></div>
+        <div class="row" style="margin-top:10px">
+          <label>عرض اللوحة</label>
+          <input type="range" id="targetWidth" min="30" max="560" step="1">
+          <span class="val" id="targetWidthV"></span>
+        </div>
+        <p class="note" id="sizeNote"></p>
+
+        <div class="sep"></div>
+        <div class="row">
+          <label>سماكة القاعدة</label>
+          <input type="range" id="baseThickness" min="1" max="12" step="0.2" value="3">
+          <span class="val" id="baseThicknessV"></span>
+        </div>
+        <div class="row">
+          <label>نوع النقش</label>
+          <div class="chips" style="flex:1">
+            <button class="chip" data-engrave="0">بارز</button>
+            <button class="chip" data-engrave="1">غائر</button>
+          </div>
+        </div>
+        <div class="row">
+          <label id="reliefLbl">ارتفاع النقش</label>
+          <input type="range" id="reliefHeight" min="0.2" max="4" step="0.1" value="1">
+          <span class="val" id="reliefHeightV"></span>
+        </div>
+
+        <div class="sep"></div>
+        <div class="row">
+          <label>الطابعة</label>
+          <select id="machine" style="flex:1">
+            <option value="">بلا تحديد</option>
+            <option value="p1s" selected>Bambu Lab P1S 0.4</option>
+            <option value="p1p">Bambu Lab P1P 0.4</option>
+            <option value="x1c">Bambu Lab X1 Carbon 0.4</option>
+            <option value="a1">Bambu Lab A1 0.4</option>
+            <option value="a1m">Bambu Lab A1 mini 0.4</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>قطر النوزل</label>
+          <select id="nozzle" style="flex:1">
+            <option value="0.2">٠٫٢ مم</option>
+            <option value="0.4" selected>٠٫٤ مم</option>
+            <option value="0.6">٠٫٦ مم</option>
+            <option value="0.8">٠٫٨ مم</option>
+          </select>
+        </div>
+        <label class="chk"><input type="checkbox" id="split">
+          <span>اقسم للمنصّة</span></label>
+        <div class="row hidden" id="splitRow" style="margin-top:9px">
+          <label>عمق لوح الوصل</label>
+          <input type="range" id="spliceDepth" min="0.6" max="3" step="0.1" value="1.2">
+          <span class="val" id="spliceDepthV"></span>
+        </div>
+        <div class="row hidden" id="splitRow2">
+          <label>خلوص اللوح</label>
+          <input type="range" id="spliceClearance" min="0.1" max="0.6" step="0.05" value="0.25">
+          <span class="val" id="spliceClearanceV"></span>
+        </div>
+        <p class="note hidden" id="splitNote"></p>
+      </div>
+    </details>
+
+    <details>
+      <summary>الملحقات</summary>
+      <div class="grp">
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="screwHoles"> <span>فتحات براغي</span></label>
+          <label class="chk"><input type="checkbox" id="magnet"> <span>تجويف مغانط</span></label>
+          <label class="chk"><input type="checkbox" id="keyring"> <span>حلقة مفاتيح</span></label>
+          <label class="chk"><input type="checkbox" id="mirrorHole"> <span>تعليق المرآة</span></label>
+          <label class="chk"><input type="checkbox" id="wallMount"> <span>تعليق جدار</span></label>
+          <label class="chk"><input type="checkbox" id="stand"> <span>قاعدة مكتب</span></label>
+        </div>
+
+        <div class="row hidden" id="screwRow" style="margin-top:11px">
+          <label>قطر البرغي</label>
+          <input type="range" id="screwDiameter" min="2" max="10" step="0.2" value="6">
+          <span class="val" id="screwDiameterV"></span>
+        </div>
+        <div class="row hidden" id="magRow1">
+          <label>قطر المغناطيس</label>
+          <input type="range" id="magnetDiameter" min="3" max="20" step="0.5" value="8">
+          <span class="val" id="magnetDiameterV"></span>
+        </div>
+        <div class="row hidden" id="magRow2">
+          <label>سماكته</label>
+          <input type="range" id="magnetThickness" min="1" max="6" step="0.5" value="3">
+          <span class="val" id="magnetThicknessV"></span>
+        </div>
+        <div class="row hidden" id="magRow3">
+          <label>العدد</label>
+          <div class="chips" style="flex:1">
+            <button class="chip" data-mag="2">٢</button>
+            <button class="chip" data-mag="4">٤</button>
+          </div>
+        </div>
+        <div class="row hidden" id="keyRow0">
+          <label>موضع الحلقة</label>
+          <div class="chips" style="flex:1" id="keyPos"></div>
+        </div>
+        <div class="row hidden" id="keyRow">
+          <label>ثقب الحلقة</label>
+          <input type="range" id="keyringHole" min="1.5" max="10" step="0.1" value="4">
+          <span class="val" id="keyringHoleV"></span>
+        </div>
+        <div class="row hidden" id="keyRow2">
+          <label>حجم اللسان</label>
+          <input type="range" id="keyringSize" min="0.04" max="0.22" step="0.005" value="0.075">
+          <span class="val" id="keyringSizeV"></span>
+        </div>
+        <div class="row hidden" id="wallRow">
+          <label>عمق الفتحة</label>
+          <input type="range" id="wallDepth" min="1.2" max="6" step="0.1" value="2.5">
+          <span class="val" id="wallDepthV"></span>
+        </div>
+        <div class="row hidden" id="wallRow2">
+          <label>عدد الفتحات</label>
+          <div class="chips" style="flex:1">
+            <button class="chip" data-wallc="1">واحدة</button>
+            <button class="chip" data-wallc="2">اثنتان</button>
+          </div>
+        </div>
+        <div class="row hidden" id="standRow">
+          <label>ميل القاعدة</label>
+          <input type="range" id="standAngle" min="0" max="35" step="1" value="15">
+          <span class="val" id="standAngleV"></span>
+        </div>
+      </div>
+    </details>
+
+    <div id="warns"></div>
+  </div>
+
+  <div id="exports">
+    <div id="partList"></div>
+    <div id="extruders"></div>
+    <div id="tplDrop">قالب إعدادات من السلايسر (اختياري) — اسحب ملف 3MF</div>
+    <input type="file" id="tplFile" accept=".3mf" class="hidden">
+    <button class="btn ghost" id="diagBtn" style="margin-bottom:9px">تقرير التشخيص</button>
+    <button class="btn ghost" id="resetAll" style="margin-bottom:9px">
+      إعادة الإعدادات الافتراضية
+    </button>
+    <button class="btn primary" id="dl3mf">تنزيل 3MF مجمّع</button>
+    <button class="btn ghost" id="dlstls">تنزيل STL لكل لون</button>
+    <button class="btn ghost" id="dlone">تنزيل STL واحد مدمج</button>
+    <button class="btn ghost" id="dlsvg">تنزيل وجه اللوحة SVG</button>
+  </div>
+</aside>
+
+<script>
+/* تُحمَّل الشيفرةُ بطابعٍ زمنيّ يمنع التخبئة.
+ *
+ * أداةٌ محلّيةٌ تُحرَّر ملفّاتُها باستمرار، وقد ظهر حرفٌ مفقودٌ في
+ * اللوحة مرّةً وهو موجودٌ في الملف — لأن المتصفّح كان يحمل نسخةً
+ * قديمةً من مجموعة الرموز. والإضافةُ ترتيبُها محفوظ: `async = false`
+ * يضمن التنفيذ بالتتابع كما لو كُتبت وسوماً ثابتة.
+ */
+(function () {
+  var files = [
+    'vendor/three.min.js', 'vendor/OrbitControls.js',
+    'vendor/polygon-clipping.min.js',
+    'src/glyphs.js', 'src/svgpath.js', 'src/emblem-ksa.js', 'src/emblem.js',
+    'src/layout.js', 'src/geometry.js', 'src/exporters.js', 'src/app.js'
+  ];
+  var v = '?v=' + Date.now();
+  files.forEach(function (f) {
+    var el = document.createElement('script');
+    el.src = f + v;
+    el.async = false;
+    document.head.appendChild(el);
+  });
+})();
+</script>
+</body>
+</html>
