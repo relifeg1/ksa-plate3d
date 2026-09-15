@@ -419,8 +419,24 @@
     if (_span) return _span;
     var G = global.KSA_GLYPHS;
     var up = 0, dn = 0;
+    /* ——— النطاقُ لحروف اللوحة لا لأبجدية الخطّ ———
+     *
+     * كان يُمسح على الستّةِ والثلاثين حرفاً التي في الخطّ، فيحجز
+     * لأطولها صعوداً وأعمقها نزولاً. وأطولُها «أ» بهمزتها (١٫٣٤٩)
+     * وأعمقُها «ي» (٠٫٦٦٧) — **وكلاهما ليس من حروف اللوحة**.
+     * فيُحجز ٢٫٠١٦ ولا يُستعمل منه إلّا ١٫٤٨٣، ويبقى الرمزُ نصفَ
+     * خانته: حبرُه ٠٫٤٢ من ارتفاعها والحقيقةُ ٠٫٦٧.
+     *
+     * ولذلك لم يكن لمنزلق «ارتفاع الخطّ» أثرٌ يُرى: النطاقُ محكومٌ
+     * بالحجز لا به.
+     *
+     * فيُحصر المسحُ في السبعةَ عشرَ حرفاً التي تقع على اللوحة —
+     * صاعدُها «ا» ونازلُها «ن» — فيصير المحجوزُ ١٫٤٨٣ وهو المستعمَل
+     * بعينه. وخطُّ الأساس يبقى واحداً لا يتغيّر بما يُكتب، وما شذَّ
+     * من حرفٍ خارج هؤلاء يردُّه الحارسُ الأخير إلى خانته. */
     Object.keys(G.ar).forEach(function (ch) {
       if (DIGIT_RE.test(ch)) return;
+      if (!global.__SPAN_ALL && PLATE_LETTERS.indexOf(ch) < 0) return;
       var a = anatomy('ar', ch, G.ar);
       var cl = vClass(a.bb);
       var metric = cl === 'asc' ? a.bb.y1 : (a.bb.y1 - a.bb.y0);
@@ -432,6 +448,37 @@
     });
     _span = { up: up, dn: dn };
     return _span;
+  }
+
+  /* ——— أعرضُ حروف اللوحة ———
+   *
+   * الحروفُ تُضغط أفقيّاً لتسع خانتَها، وللضغط حدٌّ دونه تنحُف
+   * الأعمدةُ الرأسيةُ تحت الفوهة. فإذا كبر النطاقُ بلغ أعرضُ الحروف
+   * الحدَّ فصغُر وحدَه، وخرج «ص» أقصرَ من «ن» بلا سببٍ في رسمه.
+   *
+   * فيُقاس أعرضُها مرّةً واحدة — عرضُه منسوباً إلى النطاق — ويُحَدّ
+   * النطاقُ به، فيسع الجميعَ على حجمٍ واحد. وهو ما يفعله مصمّمُ
+   * الخطّ المضغوط: يضبط الأبجديةَ على أعرضِ حرفٍ فيها.
+   */
+  var _wideRatio = null;
+  function widestLetterRatio(script) {
+    if (_wideRatio && _wideRatio[script] !== undefined) return _wideRatio[script];
+    if (!_wideRatio) _wideRatio = {};
+    var dict = script === 'ar' ? global.KSA_GLYPHS.ar : global.KSA_GLYPHS.la;
+    var set = script === 'ar' ? PLATE_LETTERS : 'ABDEGHJKLNRSTUVXZ';
+    var w = 0;
+    for (var i = 0; i < set.length; i++) {
+      var ch = set[i];
+      if (!dict[ch]) continue;
+      var a = anatomy(script, ch, dict);
+      var cl = vClass(a.bb);
+      var metric = cl === 'asc' ? a.bb.y1 : (a.bb.y1 - a.bb.y0);
+      if (metric <= 0) continue;
+      var box = glyphParts(a, 1).box;
+      w = Math.max(w, (box.x1 - box.x0) * CLASS_F[cl] / metric);
+    }
+    _wideRatio[script] = w;
+    return w;
   }
 
   /** عرض نصّ بوحدات em مع التتبّع */
@@ -529,6 +576,7 @@
 
     var maxH = (cellH || targetH) * 0.98;
     var xsMin = squeezeMin > 0 ? squeezeMin : 0;
+    var drawn = [];
 
     for (var i = 0; i < n; i++) {
       var g = dict[str[i]];
@@ -570,6 +618,13 @@
       var sp = classSpan();
       var asc = maxH / (sp.up + sp.dn);       // ارتفاعُ الصاعد بالمليمتر
       if (asc > targetH) asc = targetH;
+      /* والحروفُ لا تتجاوز ما يسعه الضغط: أعرضُها يبلغ الحدَّ أوّلاً،
+       * فيُحَدُّ النطاقُ به ليبقى الجميعُ على حجمٍ واحد. والأرقامُ
+       * أضيقُ وأكثرُ خاناتٍ فلا يبلغها هذا. */
+      if (!isD && xsMin > 0) {
+        var wr = widestLetterRatio(script);
+        if (wr > 0) asc = Math.min(asc, (slot * fill) / (wr * xsMin));
+      }
       var baseY = cy - (sp.up - sp.dn) * asc / 2;   // خطُّ الأساس
 
       var em, yBase;
@@ -607,23 +662,40 @@
         global.__SLOT_DEBUG.push({ ch: str[i], targetH: targetH, cellH: cellH,
           maxH: maxH, asc: asc, slot: slot, em: em, inkH: (b.y1 - b.y0) * em });
       }
-      var gw = (b.x1 - b.x0) * em;
-      var xs = (gw > slot * fill && gw > 0) ? (slot * fill) / gw : 1;
+      drawn.push({ gp: gp, b: b, em: em, yBase: yBase, slotCx: slotCx,
+                   gw: (b.x1 - b.x0) * em, ch: str[i] });
+    }
 
-      /* حدُّ الضغط: الضغطُ الأفقيّ يُنحّف العمودَ الرأسيَّ ويترك
-       * الأفقيَّ، فتُفقد وحدةُ سماكة الخطّ ويسقط أدقُّ تفصيلٍ دون
-       * قطر النوزل. فدون الحدِّ يصغر الرمزُ بدل أن يُشوَّه. */
-      if (xs < xsMin && xs > 0) {
-        em *= xs / xsMin;
-        xs = xsMin;
+    /* ——— الضغطُ للصفِّ كلِّه لا لكلِّ رمزٍ وحدَه ———
+     *
+     * كان لكلِّ رمزٍ ضغطُه: «ا» نحيفٌ فلا يُضغط، و«ص» عريضٌ فيُضغط
+     * حتى يبلغ الحدَّ ثمّ **يصغر**. فيخرج «ص» أقصرَ من جيرانه بلا
+     * سببٍ في رسمه — وذلك ما كسر «رسمٌ واحدٌ ⇒ حجمٌ واحد» لمّا كبرت
+     * الرموز: بلغ «س» و«ص» الحدَّ وحدَهما فتخلّفا.
+     *
+     * والخطُّ المضغوطُ يُضغط كلُّه بنسبةٍ واحدة، لا حرفاً دون حرف.
+     * فيُؤخذ أشدُّ ما يحتاجه الصفُّ ويُعمّ. فإن نزل عن الحدّ صغُر
+     * **الصفُّ كلُّه** بنسبةٍ واحدة — فتبقى النسبُ بين الحروف كما
+     * هي، ويبقى الحدُّ حارساً على سماكة العمود الرأسيّ. */
+    var lim = slot * fill;
+    var xs = 1;
+    drawn.forEach(function (d) {
+      if (d.gw > lim && d.gw > 0) xs = Math.min(xs, lim / d.gw);
+    });
+    var shrink = 1;
+    if (xs < xsMin && xs > 0) { shrink = xs / xsMin; xs = xsMin; }
+
+    drawn.forEach(function (d) {
+      var em2 = d.em * shrink;
+      if (global.__XS_DEBUG) {
+        global.__XS_DEBUG.push({ ch: d.ch, em: em2, xs: xs, gw: d.gw,
+          slot: slot, lim: lim, inkH: (d.b.y1 - d.b.y0) * em2 });
       }
-
-      var yOff = yBase;
       // التوسيط على الصندوق المرئي: «١» نحيف و«٥» عريض، والتقدّم
       // وحده يجعل النحيف يبدو مزاحاً عن مركز خانته.
-      var dx = slotCx - (b.x0 + b.x1) / 2 * em * xs;
-      out = out.concat(P.place(gp.cs, em * xs, em, dx, yOff));
-    }
+      var dx = d.slotCx - (d.b.x0 + d.b.x1) / 2 * em2 * xs;
+      out = out.concat(P.place(d.gp.cs, em2 * xs, em2, dx, d.yBase));
+    });
     return out;
   }
 
