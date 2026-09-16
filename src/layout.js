@@ -930,10 +930,20 @@
     var cellStroke = Math.max(H * bStroke, 0.5);
     var gapX = H * bGap, gapY = H * bGap;
 
-    /* في الشبكة تكون الخطوطُ هي الفراغَ بين الخانات، فتنكمش مساحةُ
-     * التخطيط بسماكة الخطّ من كل جهة، ويصير الفاصلُ بين خانتين
-     * سماكةَ الخطّ نفسها. وفي «الصناديق» يبقى الفراغُ فراغاً. */
-    if (isGrid) { gapX = gapY = cellStroke; }
+    /* ——— الفاصلُ الداخليُّ أنحفُ من الإطار ———
+     *
+     * في الشبكة تكون الخطوطُ هي الفراغَ بين الخانات: تنكمش مساحةُ
+     * التخطيط بسماكة الخطّ من كلِّ جهة فيبقى الإطار، ويُترك بين
+     * خانتين فراغٌ فيبقى الفاصل. وكانا يُؤخذان من رقمٍ واحد فيخرجان
+     * سواءً — وفي اللوحة الحقيقية الفاصلُ أنحف.
+     *
+     * قِيست لوحة RUA مواجِهةً فوق الحبر: الإطارُ إحدى وعشرون بكسلاً
+     * والفاصلُ اثنتا عشرة، أي **ستّةٌ من عشرة**. فصار الفاصلُ
+     * بتلك النسبة، والإطارُ على حاله.
+     *
+     * وفي «الصناديق» يبقى الفراغُ فراغاً ولا إطارَ يُقاس عليه. */
+    var innerRatio = cfg.innerStroke > 0 ? Math.min(1, cfg.innerStroke) : 0.6;
+    if (isGrid) { gapX = gapY = cellStroke * innerRatio; }
     var inset = isGrid ? cellStroke : 0;
     var layoutW = innerW - 2 * inset, layoutH = innerH - 2 * inset;
 
@@ -1043,27 +1053,32 @@
      * نسبةُ الشريط وقورنت بصور لوحاتٍ حقيقية. */
     if (global.__PLATE_DEBUG_COLS) {
       global.__PLATE_DEBUG_COLS.push({ W: W, layoutW: layoutW, innerH: innerH,
-        bandW: bandW, gapX: gapX, textRoom: textRoom });
+        bandW: bandW, gapX: gapX, textRoom: textRoom,
+        cellStroke: cellStroke, inset: inset, pad: pad });
     }
 
-    /* ——— إزاحةُ خطِّ الأساس لكلِّ صفّ ———
-     * تُحسب من عمودَي الصفّ معاً (أرقاماً وحروفاً) فيبقيان على خطٍّ
-     * واحد، وتُحفظ كي لا تُعاد لكلِّ عمود. */
-    var _rowOff = [];
-    function rowOffset(r) {
-      if (_rowOff[r] !== undefined) return _rowOff[r];
-      var up = 0, dn = 0;
-      ['digits', 'letters'].forEach(function (k) {
-        if (order.indexOf(k) < 0) return;
-        var t = rowText(k, r);
-        if (!t || !t[0]) return;
-        var v = inkSpan(t[0], t[1], k, uniformGlyphs);
-        if (v.up > up) up = v.up;
-        if (v.dn > dn) dn = v.dn;
-      });
-      if (!(up > 0)) { var sp0 = classSpan(); up = sp0.up; dn = sp0.dn; }
-      _rowOff[r] = (up - dn) / 2;
-      return _rowOff[r];
+    /* ——— إزاحةُ خطِّ الأساس: كلُّ خانةٍ تتوسّط حبرَها ———
+     *
+     * حُسبت أوّلاً من عمودَي الصفّ معاً ليبقيا على خطِّ أساسٍ واحد،
+     * كما في اللوحة الحقيقية. غير أنّ نازلَ الخطِّ المستعار عميق:
+     * «ح» و«ع» تنزلان أربعةً من عشرة من النطاق، والأرقامُ لا نازلَ
+     * فيها — فيُحجز لها تحتها ما لا تملؤه، فتخرج الأرقامُ سبعةً
+     * بالمئة فوق وواحداً وثلاثين تحت. ورآها صاحبُ الأداة مرّتين
+     * فقال: «ما زالت هناك مسافة كبيرة أسفلها».
+     *
+     * فصارت الحسبةُ لكلِّ خانةٍ على حدة: تتوسّط كتلةُ حبرها خانتَها.
+     * وثمنُه أنّ خطَّ الأرقام يفترق عن خطِّ الحروف قليلاً — وبينهما
+     * فاصلٌ أسودُ يحجب ذلك. ومن أراد الخطَّ الواحد فليُعِد الجمع.
+     */
+    var _rowOff = {};
+    function rowOffset(r, kind) {
+      var key = r + '/' + kind;
+      if (_rowOff[key] !== undefined) return _rowOff[key];
+      var t = rowText(kind, r);
+      var v = (t && t[0]) ? inkSpan(t[0], t[1], kind, uniformGlyphs) : null;
+      if (!v || !(v.up > 0)) { var sp0 = classSpan(); v = { up: sp0.up, dn: sp0.dn }; }
+      _rowOff[key] = (v.up - v.dn) / 2;
+      return _rowOff[key];
     }
 
     var x = -layoutW / 2;
@@ -1115,7 +1130,7 @@
         } else {
           pushInk(textSlots(t[0], t[1], c.cx, rowY[r], textH, innerCellW,
                             SLOTS[c.kind], fillFor(c.kind), uniformGlyphs,
-                            cellH, squeezeMin, rowOffset(r)));
+                            cellH, squeezeMin, rowOffset(r, c.kind)));
         }
       }
     });

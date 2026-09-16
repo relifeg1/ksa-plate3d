@@ -32,6 +32,7 @@
     inkColor: '#111111',
     extruders: { base: 1, ink: 2, logo: 3 },
     lineWeight: 0.016,       // سماكة خطّ الخانة نسبةً إلى الارتفاع
+    innerStroke: 0.6,        // نحافةُ الفاصل بين خانتين إلى الإطار
     cornerRadius: 0.20,      // تدوير زوايا الخانة
     machine: 'p1s',
     settingsTemplate: null,  // إعدادات مشروع حقيقيّ تُدمج فيها الألوان
@@ -216,6 +217,7 @@
     cfg.glyphFillDigits = state.glyphFillDigits;
     cfg.uniformGlyphs = state.uniformGlyphs;
     cfg.squeezeMin = state.squeezeMin;
+    cfg.innerStroke = state.innerStroke;
     cfg.border = { stroke: state.lineWeight, rimW: state.lineWeight,
                    radius: state.cornerRadius };
     var mi = machineInfo();
@@ -580,6 +582,7 @@
     uniformGlyphs: { unit: '', dp: 2 },
     squeezeMin: { unit: '×', dp: 2 },
     lineWeight: { unit: '', dp: 3 },
+    innerStroke: { unit: '×', dp: 2 },
     cornerRadius: { unit: '', dp: 2 },
     colRatio: { unit: '×', dp: 2 },
     logoHeight: { unit: ' مم', dp: 1 },
