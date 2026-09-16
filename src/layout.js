@@ -481,6 +481,39 @@
     return w;
   }
 
+  /* ——— مدى حبر ما يُكتب ———
+   *
+   * مثلُ classSpan غير أنّه يمسح **ما يُكتب فعلاً** لا الأبجدية،
+   * ويحسب الأرقامَ بمقياسها والحروفَ بمقياسها. والنتيجةُ بوحدات
+   * النطاق (asc)، فتُضرب فيه لتصير مليمترات.
+   */
+  function inkSpan(str, script, kind, u) {
+    var dict = script === 'ar' ? global.KSA_GLYPHS.ar : global.KSA_GLYPHS.la;
+    var refs = refMetrics()[script];
+    var up = 0, dn = 0;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str[i];
+      if (!dict[ch]) continue;
+      var isD = DIGIT_RE.test(ch);
+      var uu = isD ? 0 : (u === undefined ? 1 : u);
+      var a = anatomy(script, ch, dict);
+      var b = glyphParts(a, uu).box;
+      var rf = isD ? refs.digits : refs.letters;
+      var kRef = 1 / (rf.y1 || rf.h);
+      var k;
+      if (uu <= 0) { k = kRef; }
+      else {
+        var cl = vClass(a.bb);
+        var metric = cl === 'asc' ? a.bb.y1 : (a.bb.y1 - a.bb.y0);
+        if (metric <= 0) metric = rf.h;
+        k = kRef * (1 - uu) + (CLASS_F[cl] / metric) * uu;
+      }
+      up = Math.max(up, b.y1 * k);
+      dn = Math.max(dn, -b.y0 * k);
+    }
+    return { up: up, dn: dn };
+  }
+
   /** عرض نصّ بوحدات em مع التتبّع */
   function measure(str, dict, tracking) {
     var w = 0;
@@ -559,7 +592,7 @@
    * والرموزُ الأقلّ من سعة الشبكة تتوسّط مجموعةً في وسط المنطقة.
    */
   function textSlots(str, script, cx, cy, targetH, areaW, nSlots, fill, uniform,
-                     cellH, squeezeMin) {
+                     cellH, squeezeMin, rowOff) {
     var G = global.KSA_GLYPHS;
     var dict = script === 'ar' ? G.ar : G.la;
     var refs = refMetrics()[script];
@@ -625,7 +658,22 @@
         var wr = widestLetterRatio(script);
         if (wr > 0) asc = Math.min(asc, (slot * fill) / (wr * xsMin));
       }
-      var baseY = cy - (sp.up - sp.dn) * asc / 2;   // خطُّ الأساس
+      /* ——— خطُّ الأساس يتوسّط حبرَ الصفّ ———
+       *
+       * كان يُحسب من حجز الأبجدية: يُترك تحته ما يسع أعمقَ نازلٍ
+       * فيها («ن»). فإن لم يكن في الصفِّ نازلٌ — كصفِّ اللاتينيّ
+       * كلِّه، وكـ«7» وحدَه — بقي ذلك الحجزُ فراغاً ميّتاً: خمسةٌ
+       * بالمئة فوق الرمز وأربعون تحته. وهو ما رآه صاحبُ الأداة
+       * فقال: «مسافة كبيرة جدّاً وغير مقبولة أبداً في التصميم».
+       *
+       * فصار يُحسب من **حبر الصفّ نفسِه**: يُجمع أعلى ما يعلو وأعمقُ
+       * ما ينزل ممّا كُتب في عمودَي الصفّ معاً، ويوضع خطُّ الأساس
+       * بحيث تتوسّط تلك الكتلةُ الخانةَ. والعمودان يتقاسمان الحسبةَ
+       * فيبقيان على خطٍّ واحد، والحجمُ لا يتغيّر — إنّما يتغيّر
+       * موضعُه. */
+      var off = (rowOff === undefined || rowOff === null)
+              ? (sp.up - sp.dn) / 2 : rowOff;
+      var baseY = cy - off * asc;                  // خطُّ الأساس
 
       var em, yBase;
       if (isD || uu <= 0) {
@@ -688,7 +736,7 @@
     drawn.forEach(function (d) {
       var em2 = d.em * shrink;
       if (global.__XS_DEBUG) {
-        global.__XS_DEBUG.push({ ch: d.ch, slotCx: d.slotCx, cx: cx, n: n, nSlots: nSlots, em: em2, xs: xs, gw: d.gw,
+        global.__XS_DEBUG.push({ ch: d.ch, slotCx: d.slotCx, cx: cx, cy: cy, cellH: cellH, maxH: maxH, yBase: d.yBase, above: d.b.y1*d.em*shrink, below: -d.b.y0*d.em*shrink, n: n, nSlots: nSlots, em: em2, xs: xs, gw: d.gw,
           slot: slot, lim: lim, inkH: (d.b.y1 - d.b.y0) * em2 });
       }
       // التوسيط على الصندوق المرئي: «١» نحيف و«٥» عريض، والتقدّم
@@ -992,6 +1040,26 @@
         bandW: bandW, gapX: gapX, textRoom: textRoom });
     }
 
+    /* ——— إزاحةُ خطِّ الأساس لكلِّ صفّ ———
+     * تُحسب من عمودَي الصفّ معاً (أرقاماً وحروفاً) فيبقيان على خطٍّ
+     * واحد، وتُحفظ كي لا تُعاد لكلِّ عمود. */
+    var _rowOff = [];
+    function rowOffset(r) {
+      if (_rowOff[r] !== undefined) return _rowOff[r];
+      var up = 0, dn = 0;
+      ['digits', 'letters'].forEach(function (k) {
+        if (order.indexOf(k) < 0) return;
+        var t = rowText(k, r);
+        if (!t || !t[0]) return;
+        var v = inkSpan(t[0], t[1], k, uniformGlyphs);
+        if (v.up > up) up = v.up;
+        if (v.dn > dn) dn = v.dn;
+      });
+      if (!(up > 0)) { var sp0 = classSpan(); up = sp0.up; dn = sp0.dn; }
+      _rowOff[r] = (up - dn) / 2;
+      return _rowOff[r];
+    }
+
     var x = -layoutW / 2;
     var cols = [];
     for (var i = 0; i < order.length; i++) {
@@ -1026,6 +1094,7 @@
       // أنّ «٢٠٣٠» تشغل نحو ٨١٪ من خانتها، فيبقى هامشٌ لا يلامس الإطار.
       var innerCellW = c.w * 0.84 - 2 * cellStroke;
       for (var r = 0; r < rows; r++) {
+        // إزاحةُ خطِّ الأساس تُحسب مرّةً للصفّ كلِّه، فيبقى العمودان عليه
         if (cfg.blank) continue;
         var t = rowText(c.kind, r);
         /* النصُّ الموصول يترك شبكةَ الخانات: الكلمةُ وحدةٌ واحدة
@@ -1040,7 +1109,7 @@
         } else {
           pushInk(textSlots(t[0], t[1], c.cx, rowY[r], textH, innerCellW,
                             SLOTS[c.kind], fillFor(c.kind), uniformGlyphs,
-                            cellH, squeezeMin));
+                            cellH, squeezeMin, rowOffset(r)));
         }
       }
     });
