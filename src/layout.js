@@ -614,7 +614,7 @@
    * والرموزُ الأقلّ من سعة الشبكة تتوسّط مجموعةً في وسط المنطقة.
    */
   function textSlots(str, script, cx, cy, targetH, areaW, nSlots, fill, uniform,
-                     cellH, squeezeMin, rowOff, scale) {
+                     cellH, squeezeMin, rowOff, scale, letterAlign) {
     var G = global.KSA_GLYPHS;
     var dict = script === 'ar' ? G.ar : G.la;
     var refs = refMetrics()[script];
@@ -773,7 +773,34 @@
         global.__SLOT_DEBUG.push({ ch: str[i], targetH: targetH, cellH: cellH,
           maxH: maxH, asc: asc, slot: slot, em: em, inkH: (b.y1 - b.y0) * em });
       }
-      drawn.push({ gp: gp, b: b, em: em, yBase: yBase, slotCx: slotCx,
+      /* ——— توسيطُ الحرف رأسياً ———
+       *
+       * الحروفُ كانت تستقرُّ على خطِّ أساسٍ واحد، فيَنزل «ح» و«ع»
+       * تحته ويبقى «ا» فوقه: تتفرّق قيعانُها اثنين وعشرين بالمئة من
+       * الخانة، فيبدو «ا» طائراً. وقال صاحبُ الأداة: «شوف الفرق بين
+       * الإنجليزي والعربي» — واللاتينيُّ يبدو مستوياً لأنّ قاماته
+       * واحدةٌ ولا نازلَ فيه.
+       *
+       * وقِيست لوحةٌ حقيقيةٌ مواجِهة («ا و ر») فتبيّن أنّها لا تستقرُّ
+       * على خطِّ أساسٍ أصلاً: **مراكزُها** تتطابق (تفرّقٌ ثلاثةٌ
+       * بالمئة) وقيعانُها تتفرّق خمسةً وقممُها أحدَ عشر. فاللوحةُ
+       * توسّط حروفَها رأسياً، ولا تسطّرها.
+       *
+       * فصار الحرفُ يتوسّط مركزَ صفّه، ويُمزج بالاستقرار على السطر
+       * بمقبضٍ (`letterAlign`) لمن أراد الخطَّ العربيَّ على أصله.
+       * والأرقامُ تُترك على السطر: هي مجموعةٌ واحدةٌ مقيسةٌ على
+       * صندوقها، و«٠» نقطةٌ تستقرُّ ولا تطفو في الوسط. */
+      var yOff = yBase;
+      if (!isD) {
+        var al = (letterAlign === undefined || letterAlign === null)
+               ? 1 : Math.max(0, Math.min(1, letterAlign));
+        if (al > 0) {
+          var yMid = cy - (b.y0 + b.y1) / 2 * em;
+          yOff = yBase + (yMid - yBase) * al;
+        }
+      }
+
+      drawn.push({ gp: gp, b: b, em: em, yBase: yOff, slotCx: slotCx,
                    gw: (b.x1 - b.x0) * em, ch: str[i] });
     }
 
@@ -1198,7 +1225,7 @@
           pushInk(textSlots(t[0], t[1], c.cx, rowY[r], textH, innerCellW,
                             SLOTS[c.kind], fillFor(c.kind), uniformGlyphs,
                             cellH, squeezeMin, rowOffset(r, c.kind),
-                            scaleFor(c.kind)));
+                            scaleFor(c.kind), cfg.letterAlign));
         }
       }
     });

@@ -24,6 +24,7 @@
     colRatio: 1,             // عرض خانة الأرقام إلى خانة الحروف
     glyphScaleLetters: 1,    // مقبضٌ حرٌّ يضرب في حجم الحرف بعد الحدود
     glyphScaleDigits: 1,     // ومثلُه للرقم
+    letterAlign: 1,          // ١ يتوسّط الحرفُ صفَّه · ٠ يستقرُّ على السطر
     baseColor: '#F2F2EE', symbol: 'circle',
     targetWidth: 335,
     baseThickness: 3,
@@ -217,6 +218,7 @@
     cfg.colRatio = state.colRatio;
     cfg.glyphScaleLetters = state.glyphScaleLetters;
     cfg.glyphScaleDigits = state.glyphScaleDigits;
+    cfg.letterAlign = state.letterAlign;
     cfg.glyphFillLetters = state.glyphFillLetters;
     cfg.glyphFillDigits = state.glyphFillDigits;
     cfg.uniformGlyphs = state.uniformGlyphs;
@@ -591,6 +593,7 @@
     colRatio: { unit: '×', dp: 2 },
     glyphScaleLetters: { unit: '×', dp: 2 },
     glyphScaleDigits: { unit: '×', dp: 2 },
+    letterAlign: { unit: '', dp: 2 },
     logoHeight: { unit: ' مم', dp: 1 },
     logoRotate: { unit: '°', dp: 0 },
     screwDiameter: { unit: ' مم', dp: 1 },
