@@ -614,7 +614,7 @@
    * والرموزُ الأقلّ من سعة الشبكة تتوسّط مجموعةً في وسط المنطقة.
    */
   function textSlots(str, script, cx, cy, targetH, areaW, nSlots, fill, uniform,
-                     cellH, squeezeMin, rowOff) {
+                     cellH, squeezeMin, rowOff, scale) {
     var G = global.KSA_GLYPHS;
     var dict = script === 'ar' ? G.ar : G.la;
     var refs = refMetrics()[script];
@@ -632,6 +632,7 @@
     var maxH = (cellH || targetH) * 0.98;
     var xsMin = squeezeMin > 0 ? squeezeMin : 0;
     var drawn = [];
+    var fitK = 1;          // أشدُّ ما احتاجه الصفُّ من تصغيرٍ ليسع خانتَه
 
     for (var i = 0; i < n; i++) {
       var g = dict[str[i]];
@@ -694,6 +695,18 @@
         var wr = widestRatio(script, isD ? 'digits' : 'letters');
         if (wr > 0) asc = Math.min(asc, (slot * fill) / (wr * xsFloor));
       }
+
+      /* ——— مقبضُ الحجم ———
+       *
+       * ما تقدّم كلُّه حدودٌ تحسبها الأداةُ: حدُّ الخانة وحدُّ الضغط
+       * وحدُّ أعرضِ رمزٍ في الأبجدية. وهي تُصيب الأكثر، وقد تخالف
+       * ما يريده صاحبُ اللوحة. فهذا مقبضٌ يضرب في النطاق **بعد**
+       * الحدود كلِّها، فيكبر الرمزُ أو يصغر كما يشاء.
+       *
+       * ولا يُترك بلا سياج: الحارسُ الأخير يردُّ ما خرج عن الخانة،
+       * وحدُّ الضغط يمنع أن ينحُف العمودُ تحت الفوهة. فالحريّةُ في
+       * الحجم، والسلامةُ محفوظة. */
+      if (scale > 0 && scale !== 1) asc *= scale;
       /* ——— خطُّ الأساس يتوسّط حبرَ الصفّ ———
        *
        * كان يُحسب من حجز الأبجدية: يُترك تحته ما يسع أعمقَ نازلٍ
@@ -707,8 +720,18 @@
        * بحيث تتوسّط تلك الكتلةُ الخانةَ. والعمودان يتقاسمان الحسبةَ
        * فيبقيان على خطٍّ واحد، والحجمُ لا يتغيّر — إنّما يتغيّر
        * موضعُه. */
-      var off = (rowOff === undefined || rowOff === null)
-              ? (sp.up - sp.dn) / 2 : rowOff;
+      /* ——— النطاقُ لا يتجاوز الخانة ———
+       *
+       * مقبضُ الحجم يضرب في النطاق بلا حدّ، فإن جاوز الخانةَ وجب
+       * الردّ. وكان الردُّ يقع على كلِّ رمزٍ مقابلَ حدّين محسوبين من
+       * خطِّ أساسٍ متحرّك، فيردُّ أشدَّ ممّا يلزم ويرتدُّ الصفُّ صغيراً
+       * عند التكبير. والصوابُ أن يُحَدَّ النطاقُ بمدى الصفّ نفسِه قبل
+       * أن يُحسب خطُّ الأساس: فيقف المقبضُ عند حدِّ الخانة وقوفاً،
+       * ويبقى الصفُّ متوسّطاً. */
+      var off, span;
+      if (rowOff && rowOff.span > 0) { off = rowOff.off; span = rowOff.span; }
+      else { off = (sp.up - sp.dn) / 2; span = sp.up + sp.dn; }
+      if (span > 0) asc = Math.min(asc, maxH / span);
       var baseY = cy - off * asc;                  // خطُّ الأساس
 
       var em, yBase;
@@ -727,15 +750,19 @@
         yBase = baseY;
       }
 
-      /* حارسٌ أخير: ما خرج عن الخانة رغم حساب المدى يصغر. ولا يقع
-       * هذا في الأبجدية المقيسة، وإنّما يُبقى لرمزٍ يُضاف يوماً. */
+      /* ——— حارسُ الخانة ———
+       *
+       * ما خرج عن الخانة يصغر حتى يسعها. وكان يُحسب لكلِّ رمزٍ وحدَه،
+       * فإذا كُبّر الصفُّ بمقبض الحجم خرج بعضُ رموزه دون بعض فصغُر
+       * وحدَه — فيضطرب الصفُّ ويكبر عند مقدارٍ ويصغر عند ما فوقه.
+       * فصار الردُّ **للصفِّ كلِّه** بأشدِّ ما احتاجه رمزٌ منه: تبقى
+       * النسبُ بينها، ويقف المقبضُ عند حدِّ الخانة بدل أن يرتدّ. */
       var above = b.y1 * em, below = -b.y0 * em;
       var topLim = (cy + maxH / 2) - yBase;
       var botLim = yBase - (cy - maxH / 2);
       if (above > topLim || below > botLim) {
-        var k = Math.min(above > topLim ? topLim / above : 1,
-                         below > botLim ? botLim / below : 1);
-        em *= k;
+        fitK = Math.min(fitK, above > topLim ? topLim / above : 1,
+                              below > botLim ? botLim / below : 1);
       }
 
       /* منفذُ قياسٍ لكلِّ رمز — به عُرف أنّ `textFill` لا أثرَ له:
@@ -761,6 +788,11 @@
      * فيُؤخذ أشدُّ ما يحتاجه الصفُّ ويُعمّ. فإن نزل عن الحدّ صغُر
      * **الصفُّ كلُّه** بنسبةٍ واحدة — فتبقى النسبُ بين الحروف كما
      * هي، ويبقى الحدُّ حارساً على سماكة العمود الرأسيّ. */
+    /* ردُّ الصفِّ إلى خانته أوّلاً، ثمّ يُحسب الضغطُ على الحجم بعده */
+    if (fitK < 1) {
+      drawn.forEach(function (d) { d.em *= fitK; d.gw *= fitK; });
+    }
+
     var lim = slot * fill;
     var xs = 1;
     drawn.forEach(function (d) {
@@ -1055,6 +1087,11 @@
       if (v === undefined || v === null) v = cfg.glyphFill;
       return v > 0 ? v : 0.8;
     }
+    /* مقبضُ الحجم لكلِّ صنف — يُضرب في النطاق بعد الحدود المحسوبة */
+    function scaleFor(kind) {
+      var v = kind === 'digits' ? cfg.glyphScaleDigits : cfg.glyphScaleLetters;
+      return v > 0 ? v : 1;
+    }
     var uniformGlyphs = cfg.uniformGlyphs === undefined || cfg.uniformGlyphs === null
                       ? 1 : cfg.uniformGlyphs;
     var padMin = H * 0.045;
@@ -1107,7 +1144,7 @@
       var t = rowText(kind, r);
       var v = (t && t[0]) ? inkSpan(t[0], t[1], kind, uniformGlyphs) : null;
       if (!v || !(v.up > 0)) { var sp0 = classSpan(); v = { up: sp0.up, dn: sp0.dn }; }
-      _rowOff[key] = (v.up - v.dn) / 2;
+      _rowOff[key] = { off: (v.up - v.dn) / 2, span: v.up + v.dn };
       return _rowOff[key];
     }
 
@@ -1160,7 +1197,8 @@
         } else {
           pushInk(textSlots(t[0], t[1], c.cx, rowY[r], textH, innerCellW,
                             SLOTS[c.kind], fillFor(c.kind), uniformGlyphs,
-                            cellH, squeezeMin, rowOffset(r, c.kind)));
+                            cellH, squeezeMin, rowOffset(r, c.kind),
+                            scaleFor(c.kind)));
         }
       }
     });

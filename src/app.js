@@ -22,6 +22,8 @@
     joinText: false,         // وصلُ الحروف العربية كلمةً
     bandTextAr: '', bandTextLa: '',   // فارغ = «السعودية» و KSA
     colRatio: 1,             // عرض خانة الأرقام إلى خانة الحروف
+    glyphScaleLetters: 1,    // مقبضٌ حرٌّ يضرب في حجم الحرف بعد الحدود
+    glyphScaleDigits: 1,     // ومثلُه للرقم
     baseColor: '#F2F2EE', symbol: 'circle',
     targetWidth: 335,
     baseThickness: 3,
@@ -213,6 +215,8 @@
     cfg.bandTextAr = state.bandTextAr === '' ? null : state.bandTextAr;
     cfg.bandTextLa = state.bandTextLa === '' ? null : state.bandTextLa;
     cfg.colRatio = state.colRatio;
+    cfg.glyphScaleLetters = state.glyphScaleLetters;
+    cfg.glyphScaleDigits = state.glyphScaleDigits;
     cfg.glyphFillLetters = state.glyphFillLetters;
     cfg.glyphFillDigits = state.glyphFillDigits;
     cfg.uniformGlyphs = state.uniformGlyphs;
@@ -585,6 +589,8 @@
     innerStroke: { unit: '×', dp: 2 },
     cornerRadius: { unit: '', dp: 2 },
     colRatio: { unit: '×', dp: 2 },
+    glyphScaleLetters: { unit: '×', dp: 2 },
+    glyphScaleDigits: { unit: '×', dp: 2 },
     logoHeight: { unit: ' مم', dp: 1 },
     logoRotate: { unit: '°', dp: 0 },
     screwDiameter: { unit: ' مم', dp: 1 },

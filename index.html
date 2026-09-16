@@ -333,14 +333,29 @@
         </label>
         <div class="row" style="margin-top:9px">
           <label>عرض الحروف</label>
-          <input type="range" id="glyphFillLetters" min="0.5" max="1" step="0.01" value="0.80">
+          <input type="range" id="glyphFillLetters" min="0.4" max="1.25" step="0.01" value="0.95">
           <span class="val" id="glyphFillLettersV"></span>
         </div>
         <div class="row">
           <label>عرض الأرقام</label>
-          <input type="range" id="glyphFillDigits" min="0.5" max="1" step="0.01" value="0.75">
+          <input type="range" id="glyphFillDigits" min="0.4" max="1.25" step="0.01" value="0.95">
           <span class="val" id="glyphFillDigitsV"></span>
         </div>
+
+        <div class="sep"></div>
+        <div class="row">
+          <label>حجم الحروف</label>
+          <input type="range" id="glyphScaleLetters" min="0.5" max="1.6" step="0.01" value="1">
+          <span class="val" id="glyphScaleLettersV"></span>
+        </div>
+        <div class="row">
+          <label>حجم الأرقام</label>
+          <input type="range" id="glyphScaleDigits" min="0.5" max="1.6" step="0.01" value="1">
+          <span class="val" id="glyphScaleDigitsV"></span>
+        </div>
+        <p class="note">مقبضان حرّان: يضربان في الحجم <b>بعد</b> ما تحسبه
+          الأداةُ من حدود الخانة والضغط. كبّر الرقمَ أو الحرفَ كما تشاء —
+          والحارسُ يردُّ ما خرج عن خانته، فلا يتداخل شكلان.</p>
         <div class="row">
           <label>حدّ الضغط</label>
           <input type="range" id="squeezeMin" min="0.3" max="1" step="0.05" value="0.45">
