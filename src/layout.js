@@ -466,24 +466,40 @@
    * النطاقُ به، فيسع الجميعَ على حجمٍ واحد. وهو ما يفعله مصمّمُ
    * الخطّ المضغوط: يضبط الأبجديةَ على أعرضِ حرفٍ فيها.
    */
+  /* أدنى ضغطٍ يُحتمل في الأرقام — دونه يفقد الرقمُ صورتَه */
+  var DIGIT_SQUEEZE = 0.82;
+
   var _wideRatio = null;
-  function widestLetterRatio(script) {
-    if (_wideRatio && _wideRatio[script] !== undefined) return _wideRatio[script];
+  function widestRatio(script, kind) {
+    var key = script + '/' + kind;
+    if (_wideRatio && _wideRatio[key] !== undefined) return _wideRatio[key];
     if (!_wideRatio) _wideRatio = {};
     var dict = script === 'ar' ? global.KSA_GLYPHS.ar : global.KSA_GLYPHS.la;
-    var set = script === 'ar' ? PLATE_LETTERS : 'ABDEGHJKLNRSTUVXZ';
+    var set = kind === 'digits'
+            ? (script === 'ar' ? '٠١٢٣٤٥٦٧٨٩' : '0123456789')
+            : (script === 'ar' ? PLATE_LETTERS : 'ABDEGHJKLNRSTUVXZ');
+    var refs = refMetrics()[script];
     var w = 0;
     for (var i = 0; i < set.length; i++) {
       var ch = set[i];
       if (!dict[ch]) continue;
       var a = anatomy(script, ch, dict);
-      var cl = vClass(a.bb);
-      var metric = cl === 'asc' ? a.bb.y1 : (a.bb.y1 - a.bb.y0);
-      if (metric <= 0) continue;
-      var box = glyphParts(a, 1).box;
-      w = Math.max(w, (box.x1 - box.x0) * CLASS_F[cl] / metric);
+      var box = glyphParts(a, kind === 'digits' ? 0 : 1).box;
+      var k;
+      if (kind === 'digits') {
+        /* الأرقامُ تُقاس مجموعةً على صندوقها، فنسبتُها إلى النطاق
+         * عرضُها مقسوماً على أعلى الصندوق. */
+        var rf = refs.digits;
+        k = 1 / (rf.y1 || rf.h);
+      } else {
+        var cl = vClass(a.bb);
+        var metric = cl === 'asc' ? a.bb.y1 : (a.bb.y1 - a.bb.y0);
+        if (metric <= 0) continue;
+        k = CLASS_F[cl] / metric;
+      }
+      w = Math.max(w, (box.x1 - box.x0) * k);
     }
-    _wideRatio[script] = w;
+    _wideRatio[key] = w;
     return w;
   }
 
@@ -657,12 +673,26 @@
       var sp = classSpan();
       var asc = maxH / (sp.up + sp.dn);       // ارتفاعُ الصاعد بالمليمتر
       if (asc > targetH) asc = targetH;
-      /* والحروفُ لا تتجاوز ما يسعه الضغط: أعرضُها يبلغ الحدَّ أوّلاً،
-       * فيُحَدُّ النطاقُ به ليبقى الجميعُ على حجمٍ واحد. والأرقامُ
-       * أضيقُ وأكثرُ خاناتٍ فلا يبلغها هذا. */
-      if (!isD && xsMin > 0) {
-        var wr = widestLetterRatio(script);
-        if (wr > 0) asc = Math.min(asc, (slot * fill) / (wr * xsMin));
+      /* ——— النطاقُ لا يتجاوز ما يسعه الضغط ———
+       *
+       * الرمزُ يُضغط أفقيّاً ليسع خانتَه. وللحروف حدٌّ أدنى للضغط
+       * (`squeezeMin`) دونه تنحُف الأعمدةُ الرأسيةُ تحت الفوهة،
+       * فيُحَدُّ نطاقُها بأعرضِ حرفٍ في الأبجدية ليبقى الجميعُ على
+       * حجمٍ واحد.
+       *
+       * وأمّا الأرقامُ فحدُّها أعلى من ذلك بكثير، لا لأجل الطباعة بل
+       * لأجل الشكل: الرقمُ المضغوطُ إلى النصف لا يُعرَف. وقد وقع في
+       * اللوحة الرياضية — صفٌّ واحدٌ فارتفاعُ خانته كاملُ اللوحة،
+       * فطال «٧» حتى بلغ الضغطُ حدَّه الأدنى ٠٫٤٥ فخرج شوكةً. وقال
+       * صاحبُ الأداة: «أقربُ شكلٍ للحقيقيّ هو الذي في الطويلة» —
+       * وهي التي لم تُضغط أرقامُها أصلاً.
+       *
+       * فصار للأرقام حدُّ ضغطٍ أرفعُ (٠٫٨٢)، ويُحَدُّ نطاقُها به:
+       * تقصُر قليلاً وتبقى على نسبتها في الخطّ. */
+      var xsFloor = isD ? Math.max(xsMin, DIGIT_SQUEEZE) : xsMin;
+      if (xsFloor > 0) {
+        var wr = widestRatio(script, isD ? 'digits' : 'letters');
+        if (wr > 0) asc = Math.min(asc, (slot * fill) / (wr * xsFloor));
       }
       /* ——— خطُّ الأساس يتوسّط حبرَ الصفّ ———
        *
